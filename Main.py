@@ -17,7 +17,7 @@ n_d = 1000
 n_y = 500
 
 n_epochs = 10   
-lr=0.00095
+lr=0.00094
 n_sentence=9000
 
 n_batch=128
@@ -26,7 +26,7 @@ n_maxlen=15
 n_words=500
 
 text=[]
-with open("data\OpenSubtitles2012.en-ko.en") as f:
+with open("data/OpenSubtitles2012.en-ko.en") as f:
     for line in f:
         text.append(line)
 input=Tokenizer(n_words)
@@ -36,7 +36,7 @@ seq=input.texts_to_matrix(text,"onehot",n_sentence)
 time_steps_x=input.maxlen
 
 text=[]
-with open("data\OpenSubtitles2012.en-ko.en") as f:
+with open("data/OpenSubtitles2012.en-ko.en") as f:
     for line in f:
         text.append(line)
 
@@ -66,11 +66,11 @@ model.build()
 i=16
 
 if mode=='tr':
-    model.load('data\encdec_enfr.pkl')
+    model.load('data/encdec_enfr.pkl')
     
     
     model.train(seq,targets)
-    model.save('data\encdec_enfr.pkl')
+    model.save('data/encdec_enfr.pkl')
     
     plt.close('all')
     fig = plt.figure()
@@ -106,7 +106,7 @@ if mode=='tr':
     ax3.set_title('Training error')
     
 elif mode=='te':
-    model.load('data\encdec_enfr.pkl')
+    model.load('data/encdec_enfr.pkl')
     
     
     plt.close('all')
