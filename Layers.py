@@ -501,8 +501,6 @@ class decoder(object):
         
         self.U_att= glorot_normal((self.n_in,1)) 
         self.b_att= zero((1,))
-<<<<<<< HEAD
-=======
 
         self.W_yc=glorot_normal((self.n_out,))
         
@@ -568,7 +566,7 @@ class decoder(object):
         
         logit=T.tanh(T.dot(s_t, self.W_hl)+T.dot(y_tm1, self.W_yl)+T.dot(c, self.W_cl))
         
-        return T.cast(s_t,dtype =theano.config.floatX),T.cast(logit,dtype =theano.config.floatX),c  
+        return T.cast(s_t,dtype =theano.config.floatX),T.cast(logit,dtype =theano.config.floatX)  
 
     def set_previous(self,layer):
         self.previous = layer
@@ -592,171 +590,10 @@ class decoder(object):
         X_mask=self.previous.x_mask
         y_mask=T.alloc(1.,y.shape[0])
         
-        h,logit,ctx=self._step(y,y_mask,s_tm1,c,X_mask) 
-        
-
-        return h,logit,ctx
-    
-    def get_output(self,y,y_mask,init_state):
-        X=self.get_input()  
-        X_mask=self.previous.x_mask
-  
-        ### shift 1 sequence backward
-        y_shifted=T.zeros_like(y)
-        y_shifted=T.set_subtensor(y_shifted[1:],y[:-1])
-        y=y_shifted 
-
-        ### shift 1 sequence backward
-        y_shifted=T.zeros_like(y_mask)
-        y_shifted=T.set_subtensor(y_shifted[1:],y_mask[:-1])
-        y_mask=y_shifted 
-        
-        [h,logit,ctx], _ = theano.scan(self._step, 
-                                     sequences = [y,y_mask],
-                                     outputs_info = [init_state,
-                                                     None,None],
-                                     non_sequences=[X,X_mask])
-
-        return logit
-'''        
-class decoder(object):
-    def __init__(self,n_in,n_hidden,n_out):
-        self.n_in=int(n_in)
-        self.n_hidden=int(n_hidden)
-        self.n_out=int(n_out)
-        self.input= T.tensor3()
-        self.output= T.tensor3()
-        self.x_mask=T.matrix()
-        #self.y_mask=T.matrix()
-
-        
-        self.W_z = glorot_normal((n_out,n_hidden))
-        self.U_z = glorot_normal((n_hidden,n_hidden))
-        self.b_z = zero((n_hidden,))
-
-        self.W_r = glorot_normal((n_out,n_hidden))
-        self.U_r = glorot_normal((n_hidden,n_hidden))
-        self.b_r = zero((n_hidden,))
-
-        self.W_h = glorot_normal((n_out,n_hidden)) 
-        self.U_h = glorot_normal((n_hidden,n_hidden))
-        self.b_h = zero((n_hidden,))
-        
-        self.U_att= glorot_normal((self.n_in,1)) 
-        self.b_att= zero((1,))
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
-
-        self.W_yc=glorot_normal((self.n_out,))
-        
-
-        self.W_cy = glorot_normal((self.n_in,self.n_hidden))
-        self.W_cs= glorot_normal((self.n_in,self.n_hidden))
-
-        
-        self.W_ha = glorot_normal((self.n_in,self.n_in))
-        self.W_sa= glorot_normal((self.n_hidden,self.n_in))
-        
-
-        
-        self.W_cl= glorot_normal((self.n_in,self.n_out))
-        self.W_yl= glorot_normal((self.n_out,self.n_out))
-        self.W_hl= glorot_normal((self.n_hidden,self.n_out))
-        
-        self.params=[self.W_z,self.U_z,self.b_z,self.W_r,self.U_r,self.b_r,
-                   self.W_h,self.U_h,self.b_h,self.W_cy,self.W_cs,self.W_ha,self.W_sa
-<<<<<<< HEAD
-                     ,self.W_cl,self.W_yl,self.W_hl,self.U_att,self.b_att]
-=======
-                     ,self.W_cl,self.W_yl,self.W_hl]#,self.U_att,self.b_att]
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
-        
-
-        self.L1 = T.sum(abs(self.W_z))+T.sum(abs(self.U_z))+\
-                  T.sum(abs(self.W_r))+T.sum(abs(self.U_r))+\
-                  T.sum(abs(self.W_h))+T.sum(abs(self.U_h))+\
-                  T.sum(abs(self.W_cy))+T.sum(abs(self.W_cs))+\
-                  T.sum(abs(self.W_ha))+T.sum(abs(self.W_sa))+\
-                  T.sum(abs(self.W_cl))+T.sum(abs(self.W_yl))+\
-                  T.sum(abs(self.W_hl))+T.sum(abs(self.U_att))
-        self.L2_sqr = T.sum(self.W_z**2) + T.sum(self.U_z**2)+\
-                      T.sum(self.W_r**2) + T.sum(self.U_r**2)+\
-                      T.sum(self.W_h**2) + T.sum(self.U_h**2)+\
-                      T.sum(self.W_cy**2) + T.sum(self.W_cs**2)+\
-                      T.sum(self.W_ha**2) + T.sum(self.W_sa**2)+\
-                      T.sum(self.W_cl**2) + T.sum(self.W_yl**2)+\
-                      T.sum(self.W_hl**2) + T.sum(self.U_att**2)
-        
-    def _step(self,y_tm1,y_m,s_tm1,h,x_m):
-                
-        # attention
-
-<<<<<<< HEAD
-        pctx__=T.dot(h,self.W_ha)+T.dot(s_tm1,self.W_sa)[None,:,:]
-        
-        pctx__=T.tanh(pctx__)
-        
-        e=T.dot(pctx__,self.U_att)+self.b_att
-        
-        e=T.exp(e.reshape((e.shape[0],e.shape[1])))
-        
-=======
-        
-        pctx__=T.dot(h,self.W_ha)+T.dot(s_tm1,self.W_sa)
-
-        e=T.exp(T.tanh(pctx__))
-
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
-        e=e/e.sum(0, keepdims=True)
-        
-        e=e*x_m
-  
-        c=(h*e[:,:,None]).sum(0)
-        
-
-        z = T.nnet.sigmoid(T.dot(y_tm1, self.W_z) + self.b_z + T.dot(s_tm1, self.U_z)+T.dot(c,self.W_cs))
-        r = T.nnet.sigmoid(T.dot(y_tm1, self.W_r) + self.b_r + T.dot(s_tm1, self.U_r)+T.dot(c,self.W_cs))
-        hh_t = T.tanh(T.dot(y_tm1, self.W_h) + self.b_h + T.dot(r * s_tm1, self.U_h)+T.dot(c,self.W_cy))
-        s_t = z * s_tm1 + (1 - z) * hh_t
-        
-        s_t = (1. - y_m)[:,None] * s_tm1 + y_m[:,None] * s_t
-        
-        logit=T.tanh(T.dot(s_t, self.W_hl)+T.dot(y_tm1, self.W_yl)+T.dot(c, self.W_cl))
-        
-        return T.cast(s_t,dtype =theano.config.floatX),T.cast(logit,dtype =theano.config.floatX),c  
-
-    def set_previous(self,layer):
-        self.previous = layer
-        self.input=self.get_input()
-        self.x_mask=self.previous.x_mask
-        
-    def set_input(self,x):
-        self.input=x
-
-        
-    def get_input(self):
-        if hasattr(self, 'previous'):
-            return self.previous.get_output()
-        else:
-            return self.input    
-
-
-
-    def get_sample(self,y,s_tm1):
-        c=self.get_input()
-        X_mask=self.previous.x_mask
-        y_mask=T.alloc(1.,y.shape[0])
-        
-<<<<<<< HEAD
         h,logit=self._step(y,y_mask,s_tm1,c,X_mask) 
         
 
         return h,logit
-=======
-        h,logit,ctx=self._step(y,y_mask,s_tm1,c,X_mask) 
-        
-
-        return h,logit,ctx
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
     
     def get_output(self,y,y_mask,init_state):
         X=self.get_input()  
@@ -772,7 +609,6 @@ class decoder(object):
         y_shifted=T.set_subtensor(y_shifted[1:],y_mask[:-1])
         y_mask=y_shifted 
         
-<<<<<<< HEAD
         [h,logit], _ = theano.scan(self._step, 
                                      sequences = [y,y_mask],
                                      outputs_info = [init_state,
@@ -780,14 +616,3 @@ class decoder(object):
                                      non_sequences=[X,X_mask])
 
         return logit
-=======
-        [h,logit,ctx], _ = theano.scan(self._step, 
-                                     sequences = [y,y_mask],
-                                     outputs_info = [init_state,
-                                                     None,None],
-                                     non_sequences=[X,X_mask])
-
-        return logit
-        
-'''      
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d

@@ -76,7 +76,6 @@ class Tokenizer(object):
         self.word_index = dict(list(zip(sorted_voc, list(range(1, len(sorted_voc)+1)))))##amend
         self.word_index['<eos>']=0
         #self.word_index['UNK']=1
-<<<<<<< HEAD
         
         print "max words:"+str(len(self.word_index))
         print "max sentences:"+str(self.document_count)
@@ -84,9 +83,6 @@ class Tokenizer(object):
             self.nb_words=len(self.word_index)
         print "nb_words:"+str(self.nb_words)
         
-=======
-
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
         self.index_docs = {}
         for w, c in list(self.word_docs.items()):
             self.index_docs[self.word_index[w]] = c
@@ -234,11 +230,7 @@ class Tokenizer(object):
             if w==0:break
             i = self.word_index.keys()[self.word_index.values().index(w)]
             #print i
-<<<<<<< HEAD
             if i is not None:vect.append(i)
-=======
-            vect.append(i)
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 
 
         return vect

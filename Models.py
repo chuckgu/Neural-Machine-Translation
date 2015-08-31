@@ -29,11 +29,7 @@ def ndim_tensor(ndim):
 class ENC_DEC(object):
     
     def __init__(self,n_in,n_hidden,n_decoder,n_out,
-<<<<<<< HEAD
                  n_epochs=400,n_chapter=100,n_batch=16,maxlen=20,n_words_x=10000,n_words_y=10000,dim_word=100,
-=======
-                 n_epochs=400,n_chapter=100,n_batch=16,maxlen=20,n_words=10000,dim_word=100,
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
                  momentum_switchover=5,lr=0.001,learning_rate_decay=0.999,snapshot=100,sample_Freq=100,val_Freq=100,L1_reg=0,L2_reg=0):
         
         self.n_in=int(n_in)
@@ -190,10 +186,7 @@ class ENC_DEC(object):
         init_state=T.tanh(T.dot(ctx_mean, self.W_hi) + self.b_hi)
         
         return self.layers[-1].get_output(self.y_emb,self.y_mask,init_state)
-<<<<<<< HEAD
 
-=======
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
         
     def get_sample(self,y,h):
         
@@ -291,28 +284,11 @@ class ENC_DEC(object):
         
         
         cost = self.loss(self.y,self.y_mask) +self.L1_reg * self.L1
-<<<<<<< HEAD
   
         updates=eval(optimizer)(self.params,cost,mom,lr)    
         
         
         
-=======
-        '''
-        gparams = []
-        for param in self.params:
-            gparams.append(T.grad(cost, param))
-
-        # zip just concatenate two lists
-        updates = OrderedDict()
-        for param, gparam in zip(self.params, gparams):
-            weight_update = self.updates[param]
-            upd = mom*weight_update - lr * gparam
-            updates[weight_update] = upd
-            updates[param] = param + upd
-        '''    
-        updates=eval(optimizer)(self.params,cost,self.updates,mom,lr)    
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
         '''    
         compute_val_error = theano.function(inputs = [index,n_ex ],
                                               outputs = self.loss(self.y,self.y_mask),
@@ -333,12 +309,8 @@ class ENC_DEC(object):
                                             self.x_mask: mask_set_x[:,batch_start:batch_stop],
                                             self.y_mask: mask_set_y[:,batch_start:batch_stop]  
                                                     },
-<<<<<<< HEAD
                                       mode = mode,
                                       on_unused_input='ignore')
-=======
-                                      mode = mode)
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 
         ###############
         # TRAIN MODEL #
@@ -359,11 +331,7 @@ class ENC_DEC(object):
             for idx in xrange(n_train_batches):
             
                 effective_momentum = self.final_momentum \
-<<<<<<< HEAD
                                      if (epoch+len(self.errors)) > self.momentum_switchover \
-=======
-                                     if epoch > self.momentum_switchover \
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
                                      else self.initial_momentum
                 cost = train_model(idx,
                                    self.lr,
@@ -396,7 +364,6 @@ class ENC_DEC(object):
                 i=np.random.randint(1,n_train)
                 
                 test=X_train[:,i]
-<<<<<<< HEAD
 
                 truth=Y_train[:,i]                
                 
@@ -445,43 +412,6 @@ class ENC_DEC(object):
         X_test=np.asarray(X_test[:,None],dtype='int32')
         X_mask=np.asarray(X_mask[:,None],dtype='float32')
 
-=======
-
-                truth=Y_train[:,i]                
-                
-                guess =self.gen_sample(test,X_mask[:,i])
-                
-                print 'Input: ',' '.join(input.sequences_to_text(test))
-    
-                print 'Truth: ',' '.join(output.sequences_to_text(truth))
-                
-                print 'Sample: ',' '.join(output.sequences_to_text(guess[1]))
-             
-            '''
-            # compute loss on validation set
-            if np.mod(epoch,self.val_Freq)==0:
-
-                val_losses = [compute_val_error(i, n_train)
-                                for i in xrange(n_train_batches)]
-                val_batch_sizes = [get_batch_size(i, n_train)
-                                     for i in xrange(n_train_batches)]
-                this_val_loss = np.average(val_losses,
-                                         weights=val_batch_sizes)                     
-            '''     
-                
-            self.lr *= self.learning_rate_decay
-                    
-                          
-   
-
-                                      
-    def gen_sample(self,X_test,X_mask,stochastic=True):
-        X_test=np.asarray(X_test[:,None],dtype='int32')
-        X_mask=np.asarray(X_mask[:,None],dtype='float32')
-
-        
-        
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
         sample=[]
         sample_proba=[]
         
@@ -494,25 +424,12 @@ class ENC_DEC(object):
         hyp_scores = np.zeros(live_k).astype('float32')
         hyp_states = []
 
-<<<<<<< HEAD
         next_w=np.zeros((1,self.n_out)).astype('float32') 
         h_w=-1*np.ones((1,self.n_decoder)).astype('float32')
         
 
         
 
-=======
-        next_w=T.zeros((1,self.n_out))     
-        ctx=self.layers[-1].get_input()
-        ctx_mean = (ctx * X_mask[:,:,None]).sum(0) / X_mask.sum(0)[:,None]
-        h_w=T.tanh(T.dot(ctx_mean, self.W_hi) + self.b_hi)
-        
-
-
-        for i in xrange(self.maxlen):
-            
-            h_w,logit,c=self.get_sample(next_w,h_w)
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 
         for i in xrange(self.maxlen):
             
@@ -525,9 +442,7 @@ class ENC_DEC(object):
                 
 
                 sample.append(result) 
-                sample_score.append(c)
                 
-<<<<<<< HEAD
                 w=get_vector(result)
                 
                 next_w=np.asarray(w.reshape((1,self.n_out))).astype('float32')
@@ -538,14 +453,6 @@ class ENC_DEC(object):
 
                 #print p_y_given_x_gen
                 cand_scores = hyp_scores[:,None] - np.log(p_y_given_x_gen.flatten())
-=======
-                next_w=self.Wemb_dec[result]
-
-        '''        
-            else:    #Todo : implement Beam Search Algorithm here
-            
-                cand_scores = hyp_scores[:,None] - np.log(p_y_given_x_gen)
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
                 cand_flat = cand_scores.flatten()
                 ranks_flat = cand_flat.argsort()[:(k-dead_k)]
                 
@@ -596,7 +503,6 @@ class ENC_DEC(object):
         
         if not stochastic:
         # dump every remaining one
-<<<<<<< HEAD
             if live_k > 0:
                 for idx in xrange(live_k):
                     sample.append(hyp_samples[idx])
@@ -606,28 +512,4 @@ class ENC_DEC(object):
 
         return sample_proba,sample
    
-=======
-        if live_k > 0:
-            for idx in xrange(live_k):
-                sample.append(hyp_samples[idx])
-                sample_score.append(hyp_scores[idx])
-        '''
-        ## compile theano graph
-        predict_proba = theano.function(inputs = [self.x,self.x_mask],
-                                             outputs = sample_proba,
-                                             mode = mode)
-                                             
-        predict = theano.function(inputs = [self.x,self.x_mask],
-                                       outputs = sample, # y-out is calculated by applying argmax
-                                       mode = mode)          
-        '''                               
-        predict_etc = theano.function(inputs = [self.x,self.x_mask],
-                                       outputs = sample_score, # y-out is calculated by applying argmax
-                                       mode = mode,
-                                       on_unused_input='ignore')            
-        '''
-                                       
-        return  predict_proba(X_test,X_mask),predict(X_test,X_mask)
-        
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
         

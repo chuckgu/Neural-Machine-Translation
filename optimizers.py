@@ -7,11 +7,7 @@ from collections import OrderedDict
 from six.moves import zip
 
 
-<<<<<<< HEAD
 def SGD(params,cost,mom,lr):
-=======
-def SGD(params,cost,update,mom,lr):
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 
     gparams = []
 
@@ -21,11 +17,7 @@ def SGD(params,cost,update,mom,lr):
     # zip just concatenate two lists
     updates = OrderedDict()
     for param, gparam in zip(params, gparams):
-<<<<<<< HEAD
         weight_update = theano.shared(param.get_value(borrow = True) * 0.)
-=======
-        weight_update = update[param]
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
         upd = mom*weight_update - lr * gparam
         updates[weight_update] = upd
         updates[param] = param + upd
@@ -33,11 +25,7 @@ def SGD(params,cost,update,mom,lr):
     return updates
 
 
-<<<<<<< HEAD
 def RMSprop(params,cost,mom,lr,rho=0.9, epsilon=1e-6):
-=======
-def RMSprop(params,cost,update,mom,lr,rho=0.9, epsilon=1e-6):
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 
     gparams = []
     for param in params:
@@ -58,11 +46,7 @@ def RMSprop(params,cost,update,mom,lr,rho=0.9, epsilon=1e-6):
     return updates    
 
 
-<<<<<<< HEAD
 def Adagrad(params,cost,mom,lr,epsilon=1e-6):
-=======
-def Adagrad(params,cost,update,mom,lr,epsilon=1e-6):
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 
     gparams = []
     for param in params:
@@ -83,11 +67,7 @@ def Adagrad(params,cost,update,mom,lr,epsilon=1e-6):
     return updates 
 
 
-<<<<<<< HEAD
 def Adadelta(params,cost,mom,lr,rho=0.95, epsilon=1e-6):
-=======
-def Adadelta(params,cost,update,mom,lr,rho=0.95, epsilon=1e-6):
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 
     gparams = []
     for param in params:
