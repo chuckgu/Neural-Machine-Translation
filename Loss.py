@@ -49,7 +49,7 @@ def nll_binary(p_y_given_x, y):
     # negative log likelihood here is cross entropy
     return T.mean(T.nnet.binary_crossentropy(p_y_given_x, y))
     
-def nll_multiclass(p_y_given_x, y):
+def nll_multiclass(p_y_given_x, y,y_mask):
         # negative log likelihood based on multiclass cross entropy error
         #
         # Theano's advanced indexing is limited
@@ -62,9 +62,14 @@ def nll_multiclass(p_y_given_x, y):
         p_y = p_y_given_x
         p_y_m = T.reshape(p_y, (p_y.shape[0] * p_y.shape[1], -1))
         
-        y_f = T.argmax(y, axis = -1).flatten(ndim=1)
+        #y_f = T.argmax(y, axis = 1).flatten(ndim=1)
+        y_f=y.flatten()
         
-        return -T.mean(T.log(p_y_m)[T.arange(p_y_m.shape[0]), y_f])
+        cost=-T.log(p_y_m)[T.arange(p_y_m.shape[0]), y_f]
+        cost=cost.reshape((y.shape[0],y.shape[1]))
+        cost = T.mean((cost * y_mask).sum(0))
+        
+        return cost
 '''
 def nll_multiclass(p_y_given_x, y):
     # notice to [  T.arange(y.shape[0])  ,  y  ]

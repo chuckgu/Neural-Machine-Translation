@@ -44,11 +44,7 @@ def sampling(i,model,input,output,seq,seq_mask,targets,stochastic,n_gen_maxlen,n
     
     print 'Truth: ',' '.join(output.sequences_to_text(truth))
     
-<<<<<<< HEAD
     prob=np.asarray(guess[0],dtype=np.float)
-=======
-    prob=np.asarray(guess[0],dtype=np.float).reshape((n_gen_maxlen,n_words))
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
     
     estimate=guess[1]
     
@@ -58,35 +54,22 @@ def sampling(i,model,input,output,seq,seq_mask,targets,stochastic,n_gen_maxlen,n
 
 n_epochs = 50
 lr=0.001
-momentum_switchover=0
+momentum_switchover=5
 learning_rate_decay=0.999
-<<<<<<< HEAD
 optimizer="RMSprop"
-=======
-optimizer="SGD"
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 
 snapshot_Freq=50
 sample_Freq=15
 val_Freq=50
 
-<<<<<<< HEAD
-n_sentence=100000
-=======
 n_sentence=9000
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 n_batch=128 
 n_chapter=None ## unit of slicing corpus
 n_maxlen=100 ##max length of sentences in tokenizing
 n_gen_maxlen=20 ## max length of generated sentences
-<<<<<<< HEAD
-n_words_x=20000 ## max numbers of words in dictionary
+n_words_x=10000 ## max numbers of words in dictionary
 n_words_y=10000 ## max numbers of words in dictionary
-dim_word=1000  ## dimention of word embedding 
-=======
-n_words=10000 ## max numbers of words in dictionary
 dim_word=400  ## dimention of word embedding 
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 
 n_u = dim_word
 n_h = 1000 ## number of hidden nodes in encoder
@@ -94,11 +77,7 @@ n_h = 1000 ## number of hidden nodes in encoder
 n_d = 1000 ## number of hidden nodes in decoder
 n_y = dim_word
 
-<<<<<<< HEAD
 stochastic=False
-=======
-stochastic=True
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 verbose=1
 
 
@@ -110,15 +89,12 @@ with open("data/TED2013.raw.en") as f:
     for line in f:
         text.append(line)
         #text.append(korean_morph(line))
-input=Tokenizer(n_words_x)
+input=Tokenizer(n_words)
 input.fit_on_texts(text)
 seq=input.texts_to_sequences(text,n_sentence,n_maxlen)
 
-<<<<<<< HEAD
 n_words_x=input.nb_words
-'''
-=======
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
+
 text=[]
 with open("data/TED2013.raw.en") as f:
     for line in f:
@@ -126,15 +102,9 @@ with open("data/TED2013.raw.en") as f:
 
 output=Tokenizer(n_words)
 output.fit_on_texts(text)
-<<<<<<< HEAD
-'''
-output=input
-#targets=output.texts_to_sequences(text,n_sentence,n_maxlen)
-targets=seq
-n_words_y=output.nb_words
-=======
 targets=output.texts_to_sequences(text,n_sentence,n_maxlen)
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
+
+n_words_y=output.nb_words
 
 targets[:-1]=targets[1:]
 
@@ -144,11 +114,7 @@ seq,seq_mask,targets,targets_mask=prepare_data(seq,targets,n_maxlen)
 
 mode='tr'
 
-<<<<<<< HEAD
 model = ENC_DEC(n_u,n_h,n_d,n_y,n_epochs,n_chapter,n_batch,n_gen_maxlen,n_words_x,n_words_y,dim_word,
-=======
-model = ENC_DEC(n_u,n_h,n_d,n_y,n_epochs,n_chapter,n_batch,n_gen_maxlen,n_words,dim_word,
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
             momentum_switchover,lr,learning_rate_decay,snapshot_Freq,sample_Freq)
 model.add(BiDirectionGRU(n_u,n_h))
 model.add(decoder(n_h,n_d,n_y))
@@ -156,11 +122,7 @@ model.build()
 
 
 
-<<<<<<< HEAD
 filepath='data/ted.pkl'
-=======
-filepath='data/subscript_emb_mask_gru2.pkl'
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 
 if mode=='tr':
     if os.path.isfile(filepath): model.load(filepath)
@@ -184,27 +146,16 @@ elif mode=='te':
     else: 
         raise IOError('loading error...')
 
-<<<<<<< HEAD
     i=20
     for j in range(i):
         k=np.random.randint(1,n_sentence)
         a=j+1
         print('\nsample %i >>>>'%a)
         prob,estimate=sampling(k,model,input,output,seq,seq_mask,targets,stochastic,n_gen_maxlen,n_words)
-=======
-    i=2
-    
-    prob,estimate=sampling(i,model,input,output,seq,seq_mask,targets,stochastic,n_gen_maxlen,n_words)
- 
-
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
  
 
  
 
 
-<<<<<<< HEAD
 
-=======
->>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
     

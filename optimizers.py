@@ -2,178 +2,120 @@ from __future__ import absolute_import
 import theano
 import theano.tensor as T
 import numpy as np
-
-from .utils.theano_utils import shared_zeros, shared_scalar
+from initializations import shared_zeros
+from collections import OrderedDict
 from six.moves import zip
 
-def clip_norm(g, c, n):
-    if c > 0:
-        g = T.switch(T.ge(n, c), g*c/n, g)
-    return g
 
-def kl_divergence(p, p_hat):
-    return p_hat - p + p*T.log(p/p_hat)
+<<<<<<< HEAD
+def SGD(params,cost,mom,lr):
+=======
+def SGD(params,cost,update,mom,lr):
+>>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 
-class Optimizer(object):
+    gparams = []
+
+    for param in params:
+        gparams.append(T.grad(cost, param))
     
-    def get_updates(self, params, regularizers, constraints,  loss):
-        raise NotImplementedError
+    # zip just concatenate two lists
+    updates = OrderedDict()
+    for param, gparam in zip(params, gparams):
+<<<<<<< HEAD
+        weight_update = theano.shared(param.get_value(borrow = True) * 0.)
+=======
+        weight_update = update[param]
+>>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
+        upd = mom*weight_update - lr * gparam
+        updates[weight_update] = upd
+        updates[param] = param + upd
 
-    def get_gradients(self, loss, params):
-
-        grads = T.grad(loss, params)
-
-        if hasattr(self, 'clipnorm') and self.clipnorm > 0:
-            norm = T.sqrt(sum([T.sum(g**2) for g in grads]))
-            grads = [clip_norm(g, self.clipnorm, norm) for g in grads]
-
-        return grads
-
-
-class SGD(Optimizer):
-
-    def __init__(self, lr=0.01, momentum=0., decay=0., nesterov=False, *args, **kwargs):
-        self.__dict__.update(kwargs)
-        self.__dict__.update(locals())
-        self.iterations = shared_scalar(0)
-
-    def get_updates(self, params, constraints, loss):
-        grads = self.get_gradients(loss, params)
-        lr = self.lr * (1.0 / (1.0 + self.decay * self.iterations))
-        updates = [(self.iterations, self.iterations+1.)]
-
-        for p, g, c in zip(params, grads, constraints):
-            m = shared_zeros(p.get_value().shape) # momentum
-            v = self.momentum * m - lr * g # velocity
-            updates.append((m, v)) 
-
-            if self.nesterov:
-                new_p = p + self.momentum * v - lr * g
-            else:
-                new_p = p + v
-
-            updates.append((p, c(new_p))) # apply constraints
-        return updates
+    return updates
 
 
-class RMSprop(Optimizer):
+<<<<<<< HEAD
+def RMSprop(params,cost,mom,lr,rho=0.9, epsilon=1e-6):
+=======
+def RMSprop(params,cost,update,mom,lr,rho=0.9, epsilon=1e-6):
+>>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 
-    def __init__(self, lr=0.001, rho=0.9, epsilon=1e-6, *args, **kwargs):
-        self.__dict__.update(kwargs)
-        self.__dict__.update(locals())
+    gparams = []
+    for param in params:
+        gparams.append(T.grad(cost, param))
+    
+    # zip just concatenate two lists
+    updates = OrderedDict()
+    for param, gparam in zip(params, gparams):
+        acc = theano.shared(param.get_value() * 0.)
+        acc_new = rho * acc + (1 - rho) * gparam** 2
+        gradient_scaling = T.sqrt(acc_new + epsilon)
+        gparam = gparam / gradient_scaling
+        
+        upd = - lr * gparam
+        updates[acc]=acc_new
+        updates[param] = param + upd
 
-    def get_updates(self, params, constraints, loss):
-        grads = self.get_gradients(loss, params)
-        accumulators = [shared_zeros(p.get_value().shape) for p in params]
-        updates = []
-
-        for p, g, a, c in zip(params, grads, accumulators, constraints):
-            new_a = self.rho * a + (1 - self.rho) * g ** 2 # update accumulator
-            updates.append((a, new_a))
-
-            new_p = p - self.lr * g / T.sqrt(new_a + self.epsilon)
-            updates.append((p, c(new_p))) # apply constraints
-            
-        return updates
-
-
-class Adagrad(Optimizer):
-
-    def __init__(self, lr=0.01, epsilon=1e-6, *args, **kwargs):
-        self.__dict__.update(kwargs)
-        self.__dict__.update(locals())
-
-    def get_updates(self, params, constraints, loss):
-        grads = self.get_gradients(loss, params)
-        accumulators = [shared_zeros(p.get_value().shape) for p in params]
-        updates = []
-
-        for p, g, a, c in zip(params, grads, accumulators, constraints):
-            new_a = a + g ** 2 # update accumulator
-            updates.append((a, new_a))
-
-            new_p = p - self.lr * g / T.sqrt(new_a + self.epsilon)
-            updates.append((p, c(new_p))) # apply constraints
-        return updates
+    return updates    
 
 
-class Adadelta(Optimizer):
-    '''
-        Reference: http://arxiv.org/abs/1212.5701
-    '''
-    def __init__(self, lr=1.0, rho=0.95, epsilon=1e-6, *args, **kwargs):
-        self.__dict__.update(kwargs)
-        self.__dict__.update(locals())
+<<<<<<< HEAD
+def Adagrad(params,cost,mom,lr,epsilon=1e-6):
+=======
+def Adagrad(params,cost,update,mom,lr,epsilon=1e-6):
+>>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 
-    def get_updates(self, params, constraints, loss):
-        grads = self.get_gradients(loss, params)
-        accumulators = [shared_zeros(p.get_value().shape) for p in params]
-        delta_accumulators = [shared_zeros(p.get_value().shape) for p in params]
-        updates = []
+    gparams = []
+    for param in params:
+        gparams.append(T.grad(cost, param))
+    
+    # zip just concatenate two lists
+    updates = OrderedDict()
+    for param, gparam in zip(params, gparams):
+        acc = theano.shared(param.get_value() * 0.)
+        acc_new = acc +gparam** 2
+        gradient_scaling = T.sqrt(acc_new + epsilon)
+        gparam = gparam / gradient_scaling
+        
+        upd = - lr * gparam
+        updates[acc]=acc_new
+        updates[param] = param + upd
 
-        for p, g, a, d_a, c in zip(params, grads, accumulators, delta_accumulators, constraints):
-            new_a = self.rho * a + (1 - self.rho) * g ** 2 # update accumulator
-            updates.append((a, new_a))
-
-            # use the new accumulator and the *old* delta_accumulator
-            update = g * T.sqrt(d_a + self.epsilon) / T.sqrt(new_a + self.epsilon)
-
-            new_p = p - self.lr * update
-            updates.append((p, c(new_p))) # apply constraints
-
-            # update delta_accumulator
-            new_d_a = self.rho * d_a + (1 - self.rho) * update ** 2
-            updates.append((d_a, new_d_a))
-        return updates
+    return updates 
 
 
-class Adam(Optimizer):
-    '''
-        Reference: http://arxiv.org/abs/1412.6980
+<<<<<<< HEAD
+def Adadelta(params,cost,mom,lr,rho=0.95, epsilon=1e-6):
+=======
+def Adadelta(params,cost,update,mom,lr,rho=0.95, epsilon=1e-6):
+>>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 
-        Default parameters follow those provided in the original paper
+    gparams = []
+    for param in params:
+        gparams.append(T.grad(cost, param))
+    
+    # zip just concatenate two lists
+    updates = OrderedDict()
+    for param, gparam in zip(params, gparams):
+        acc = theano.shared(param.get_value() * 0.)
+        d_acc = theano.shared(param.get_value() * 0.)
+        acc_new = rho * acc + (1 - rho) * gparam** 2
+        gradient_scaling = T.sqrt(acc_new + epsilon)
+        update = gparam * T.sqrt(d_acc + epsilon) / gradient_scaling
+        
+        upd = - lr * update
+        
+        new_d_acc = rho * d_acc + (1 - rho) * update ** 2
+        
+        updates[acc]=acc_new
+        updates[d_acc]=new_d_acc
+        updates[param] = param + upd
 
-        lambda is renamed kappa.
-    '''
-    def __init__(self, lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-8, kappa=1-1e-8, *args, **kwargs):
-        self.__dict__.update(kwargs)
-        self.__dict__.update(locals())
-        self.iterations = shared_scalar(0)
+    return updates    
 
-    def get_updates(self, params, constraints, loss):
-        grads = self.get_gradients(loss, params)
-        updates = [(self.iterations, self.iterations+1.)]
 
-        i = self.iterations
-        beta_1_t = self.beta_1 * (self.kappa**i)
 
-        # the update below seems missing from the paper, but is obviously required
-        beta_2_t = self.beta_2 * (self.kappa**i) 
 
-        for p, g, c in zip(params, grads, constraints):
-            m = theano.shared(p.get_value() * 0.) # zero init of moment
-            v = theano.shared(p.get_value() * 0.) # zero init of velocity
 
-            m_t = (beta_1_t * m) + (1 - beta_1_t) * g
-            v_t = (beta_2_t * v) + (1 - beta_2_t) * (g**2)
 
-            m_b_t = m_t / (1 - beta_1_t)
-            v_b_t = v_t / (1 - beta_2_t)
 
-            p_t = p - self.lr * m_b_t / (T.sqrt(v_b_t) + self.epsilon)
-            
-            updates.append((m, m_t))
-            updates.append((v, v_t))
-            updates.append((p, c(p_t))) # apply constraints
-        return updates
 
-# aliases
-sgd = SGD
-rmsprop = RMSprop
-adagrad = Adagrad
-adadelta = Adadelta
-adam = Adam
-
-from .utils.generic_utils import get_from_module
-def get(identifier):
-    return get_from_module(identifier, globals(), 'optimizer', instantiate=True)

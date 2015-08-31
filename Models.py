@@ -1,12 +1,16 @@
 import theano
 import theano.tensor as T
 import numpy as np
+import copy
 import logging
 import os
 import datetime
 import cPickle as pickle
 import Loss
-from initializations import glorot_uniform,zero,alloc_zeros_matrix
+from collections import OrderedDict
+from initializations import glorot_uniform,zero,alloc_zeros_matrix,norm_weight,glorot_normal
+from utils import Progbar
+from optimizers import SGD,RMSprop,Adagrad,Adadelta
 
 
 logger = logging.getLogger(__name__)
@@ -22,76 +26,79 @@ def ndim_tensor(ndim):
         return T.tensor4()
     return T.matrix()
 
-def one_hot(t, r=None):
-    """
-    given a tensor t of dimension d with integer values from range(r), return a
-    new tensor of dimension d + 1 with values 0/1, where the last dimension
-    gives a one-hot representation of the values in t.
-    
-    if r is not given, r is set to max(t) + 1
-    """
-    if r is None:
-        r = T.max(t) + 1
-        
-    ranges = T.shape_padleft(T.arange(r), t.ndim)
-
-    return T.eq(ranges, T.shape_padright(t, 1))
-
-def max_mask(t, axis):
-    """
-    given a tensor t and an axis, returns a mask tensor of the same size which is
-    1 where the tensor has a maximum along the given axis, and 0 elsewhere.
-    """
-    a = T.argmax(t, axis=axis)
-    a_oh = one_hot(a, t.shape[axis])
-    # we want the 'one hot' dimension in the same position as the axis over
-    # which we took the argmax. This takes some dimshuffle trickery:
-    reordered_dims = range(axis) + [a_oh.ndim - 1] + range(axis, a_oh.ndim - 1)
-    return a_oh.dimshuffle(reordered_dims)    
-
 class ENC_DEC(object):
     
     def __init__(self,n_in,n_hidden,n_decoder,n_out,
-                 lr=0.001,n_epochs=400,n_chapter=100,n_batch=16,maxlen=20,L1_reg=0,L2_reg=0):
+<<<<<<< HEAD
+                 n_epochs=400,n_chapter=100,n_batch=16,maxlen=20,n_words_x=10000,n_words_y=10000,dim_word=100,
+=======
+                 n_epochs=400,n_chapter=100,n_batch=16,maxlen=20,n_words=10000,dim_word=100,
+>>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
+                 momentum_switchover=5,lr=0.001,learning_rate_decay=0.999,snapshot=100,sample_Freq=100,val_Freq=100,L1_reg=0,L2_reg=0):
         
         self.n_in=int(n_in)
         self.n_hidden=int(n_hidden)
         self.n_decoder=int(n_decoder)
         self.n_out=int(n_out)
-        self.lr=float(lr)
+        
         self.n_batch=int(n_batch)
-        self.n_chapter=int(n_chapter)
-
-        self.maxlen= int(maxlen)       
         
-
-        self.x = T.tensor3(name = 'x', dtype = theano.config.floatX)
-        self.y = T.tensor3(name = 'y', dtype = theano.config.floatX)
+        if n_chapter is not None:self.n_chapter=int(n_chapter)
+        else:self.n_chapter=None
         
-        self.W_hy = glorot_uniform((self.n_decoder,self.n_out))
-        self.b_hy = zero((n_out,))
+        self.n_epochs=n_epochs
+        self.maxlen= int(maxlen)   
+        self.dim_word=dim_word
+        self.n_words_x=n_words_x
+        self.n_words_y=n_words_y
+        
+        self.x = T.matrix(name = 'x', dtype = 'int32')
+        self.y = T.matrix(name = 'y', dtype = 'int32')
+        
+        self.x_mask = T.matrix(name = 'x_mask', dtype = 'float32')
+        self.y_mask = T.matrix(name = 'y_mask', dtype = 'float32')
+        
+        self.x_emb = T.tensor3(name = 'x', dtype = 'float32')
+        self.y_emb = T.tensor3(name = 'y', dtype = 'float32')        
+        
+        self.W_hy = glorot_uniform((self.n_out,self.n_words_y))
+        self.b_hy = zero((self.n_words_y,))
         
         self.W_hi = glorot_uniform((self.n_hidden,self.n_decoder))
         self.b_hi = zero((n_decoder,))
+        
+        self.Wemb=glorot_normal((self.n_words_x,self.dim_word))
+        #self.Wemb_dec=glorot_normal((self.n_words_y,self.dim_word))
          
         self.layers = []
         self.decoder=[]
         self.params=[]
         self.errors=[]
         
-        self.n_epochs=n_epochs
+        #self.updates = {}
         
+
         self.initial_momentum=0.5
         self.final_momentum=0.9
-        self.momentum_switchover=5
-        self.learning_rate_decay=0.999
-        self.updates = {}
-
+        self.lr=float(lr)
+        self.momentum_switchover=int(momentum_switchover)
+        self.learning_rate_decay=learning_rate_decay
         
+        self.snapshot=int(snapshot)
+        self.sample_Freq=int(sample_Freq)
+        self.val_Freq=int(val_Freq)
+       
         self.L1_reg=L1_reg
         self.L2_reg=L2_reg    
         self.L1= 0
         self.L2_sqr= 0
+        
+        
+        ## word embedding 
+
+        self.x_emb=self.Wemb[T.cast(self.x.flatten(),'int32')].reshape((self.x.shape[0], self.x.shape[1], self.dim_word))
+        
+        self.y_emb=self.Wemb[T.cast(self.y.flatten(),'int32')].reshape((self.y.shape[0], self.y.shape[1], self.dim_word))
         
         
         
@@ -102,7 +109,8 @@ class ENC_DEC(object):
         if len(self.layers) > 1:
             self.layers[-1].set_previous(self.layers[-2])
         else:
-            self.layers[0].set_input(self.x)
+            self.layers[0].set_input(self.x_emb)
+            self.layers[0].set_mask(self.x_mask)
   
         self.params+=layer.params
         self.L1 += layer.L1
@@ -116,7 +124,9 @@ class ENC_DEC(object):
         """ Return state sequence."""
         params = self.params  # parameters set in constructor
         weights = [p.get_value() for p in self.params]
-        state = (params, weights)
+        lr=self.lr
+        error=self.errors
+        state = (params, weights,lr,error)
         return state
 
     def _set_weights(self, weights):
@@ -134,10 +144,12 @@ class ENC_DEC(object):
         Parameters must be in the order defined by self.params:
             W, W_in, W_out, h0, bh, by
         """
-        params, weights = state
+        params, weights, lr,error = state
         #self.set_params(**params)
         #self.ready()
         self._set_weights(weights)
+        self.lr=lr
+        self.errors=error
 
     def save(self, fpath='.', fname=None):
         """ Save a pickled representation of Model state. """
@@ -156,6 +168,7 @@ class ENC_DEC(object):
         fabspath = os.path.join(fpath, fname)
 
         logger.info("Saving to %s ..." % fabspath)
+        print("Saving to %s ..." % fabspath)
         file = open(fabspath, 'wb')
         state = self.__getstate__()
         pickle.dump(state, file, protocol=pickle.HIGHEST_PROTOCOL)
@@ -164,6 +177,7 @@ class ENC_DEC(object):
     def load(self, path):
         """ Load model parameters from path. """
         logger.info("Loading from %s ..." % path)
+        print("Loading from %s ..." % path)
         file = open(path, 'rb')
         state = pickle.load(file)
         self.__setstate__(state)
@@ -171,12 +185,33 @@ class ENC_DEC(object):
         
     
     def get_output(self):
-        init_state=T.tanh(T.dot(self.layers[-1].get_input().mean(0), self.W_hi) + self.b_hi)
+        ctx=self.layers[-1].get_input()
+        ctx_mean = (ctx * self.x_mask[:,:,None]).sum(0) / self.x_mask.sum(0)[:,None]
+        init_state=T.tanh(T.dot(ctx_mean, self.W_hi) + self.b_hi)
         
-        return self.layers[-1].get_output(self.y,init_state)
+        return self.layers[-1].get_output(self.y_emb,self.y_mask,init_state)
+<<<<<<< HEAD
+
+=======
+>>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
         
     def get_sample(self,y,h):
-        return self.layers[-1].get_sample(y,h)    
+        
+       
+
+        ctx=self.layers[-1].get_input()
+        ctx_mean = (ctx * self.x_mask[:,:,None]).sum(0) / self.x_mask.sum(0)[:,None]
+        
+        h = T.switch(h[0] < 0, 
+                        T.tanh(T.dot(ctx_mean, self.W_hi) + self.b_hi), 
+                        h) 
+        
+        h,logit=self.layers[-1].get_sample(y,h)
+        y_gen = T.dot(logit, self.Wemb.T)
+            
+        p_y_given_x_gen=T.nnet.softmax(y_gen)
+            
+        return h,logit,p_y_given_x_gen  
 
     def set_input(self):
         for l in self.layers:
@@ -188,20 +223,25 @@ class ENC_DEC(object):
     def get_input(self, train=False):
         if not hasattr(self.layers[0], 'input'):
             self.set_input()
-        return self.layers[0].get_input()    
+        return self.layers[0].get_input()  
+        
+       
 
         
     def build(self):      
-        self.params+=[self.W_hy, self.b_hy,self.W_hi, self.b_hi]
+     
+        ### set up parameters
+    
+        self.params+=[self.W_hi, self.b_hi, self.Wemb]
+        '''
         for param in self.params:
             self.updates[param] = theano.shared(
                                       value = np.zeros(
                                                   param.get_value(
                                                       borrow = True).shape,
                                                       dtype = theano.config.floatX),
-                                      name = 'updates')
-         
-
+                                      name = 'updates')        
+        '''
         ### set up regularizer                               
    
         self.L1 += T.sum(abs(self.W_hy))    
@@ -210,7 +250,7 @@ class ENC_DEC(object):
         ### fianl prediction formular
                                              
                
-        self.y_pred = T.dot(self.get_output(), self.W_hy) + self.b_hy
+        self.y_pred = T.dot(self.get_output(), self.Wemb.T)
         
         y_p = self.y_pred
         y_p_m = T.reshape(y_p, (y_p.shape[0] * y_p.shape[1], -1))
@@ -218,70 +258,30 @@ class ENC_DEC(object):
         self.p_y_given_x = T.reshape(y_p_s, y_p.shape)
                 
         
-        self.loss = lambda y: Loss.nll_multiclass(self.p_y_given_x,y)
-        
-                          
-   
-    def train(self,X_train,Y_train):
-        X_train = np.asarray(X_train, dtype=np.int)
-        Y_train = np.asarray(Y_train, dtype=np.int)
+        self.loss = lambda y,y_mask: Loss.nll_multiclass(self.p_y_given_x,y,y_mask)
         
 
-            
-        ###############
-        # TRAIN MODEL #
-        ###############
-        print 'Training model ...'
-        epoch = 0
-        n_total=X_train.shape[1]        
-        if self.n_chapter is not None: n_total_batches = int(np.ceil(1.0 * n_total / self.n_chapter))
-        
-               
-        
-        while (epoch < self.n_epochs):
-            epoch = epoch + 1
-            if self.n_chapter is not None:
-                train_losses=[]
-                effective_batch_size=[]
-                for tdx in  xrange(n_total_batches):
-                    
-                    total_start=tdx*self.n_chapter
-                    total_stop=np.minimum(n_total,(tdx+1)*self.n_chapter)
-                    
-                    loss=self.f_grad(X_train[:,total_start:total_stop],Y_train[:,total_start:total_stop],epoch)
-                    
-                    train_losses.append(loss)
-                    effective_batch_size.append(total_stop-total_start)
-    
-                this_train_loss = np.average(train_losses,
-                                         weights=effective_batch_size)      
-            else:
-                this_train_loss=self.f_grad(X_train,Y_train,epoch)          
-                   
-            self.errors.append(this_train_loss)
-           
-            print('epoch %i, train loss %f ''lr: %f' % \
-                  (epoch, this_train_loss, self.lr))
+    def train(self,X_train,X_mask,Y_train,Y_mask,input,output,verbose,optimizer):
 
-            self.lr *= self.learning_rate_decay
-            
-            
-
-    def f_grad(self,X_train,Y_train,epoch):
-        train_set_x = theano.shared(np.asarray(X_train, dtype=theano.config.floatX))
-        train_set_y = theano.shared(np.asarray(Y_train, dtype=theano.config.floatX))
-
+        train_set_x = theano.shared(np.asarray(X_train, dtype='int32'), borrow=True)
+        train_set_y = theano.shared(np.asarray(Y_train, dtype='int32'), borrow=True)
         
+        mask_set_x = theano.shared(np.asarray(X_mask, dtype='float32'), borrow=True)
+        mask_set_y = theano.shared(np.asarray(Y_mask, dtype='float32'), borrow=True)
+        
+
         index = T.lscalar('index')    # index to a case    
         lr = T.scalar('lr', dtype = theano.config.floatX)
         mom = T.scalar('mom', dtype = theano.config.floatX)  # momentum
         n_ex = T.lscalar('n_ex')
+        sindex = T.lscalar('sindex')    # index to a case
         
 
         ### batch
         
         batch_start=index*self.n_batch
         batch_stop=T.minimum(n_ex,(index+1)*self.n_batch)
+        
         
         effective_batch_size = batch_stop - batch_start
 
@@ -290,104 +290,344 @@ class ENC_DEC(object):
                                           
         
         
-        cost = self.loss(self.y) +self.L1_reg * self.L1
-                       
+        cost = self.loss(self.y,self.y_mask) +self.L1_reg * self.L1
+<<<<<<< HEAD
+  
+        updates=eval(optimizer)(self.params,cost,mom,lr)    
+        
+        
+        
+=======
+        '''
         gparams = []
         for param in self.params:
             gparams.append(T.grad(cost, param))
-            
-            
 
         # zip just concatenate two lists
-        updates = {}
+        updates = OrderedDict()
         for param, gparam in zip(self.params, gparams):
             weight_update = self.updates[param]
             upd = mom*weight_update - lr * gparam
             updates[weight_update] = upd
             updates[param] = param + upd
-            
-        compute_train_error = theano.function(inputs = [index,n_ex ],
-                                              outputs = self.loss(self.y),
+        '''    
+        updates=eval(optimizer)(self.params,cost,self.updates,mom,lr)    
+>>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
+        '''    
+        compute_val_error = theano.function(inputs = [index,n_ex ],
+                                              outputs = self.loss(self.y,self.y_mask),
                                               givens = {
                                                   self.x: train_set_x[:,batch_start:batch_stop],
-                                                  self.y: train_set_y[:,batch_start:batch_stop]},
+                                                  self.y: train_set_y[:,batch_start:batch_stop],
+                                                  self.x_mask: mask_set_x[:,batch_start:batch_stop],
+                                                  self.y_mask: mask_set_y[:,batch_start:batch_stop]  
+                                                    },
                                               mode = mode)    
-       
+        '''
         train_model =theano.function(inputs = [index, lr, mom,n_ex],
-                                      outputs = cost,
+                                      outputs = [cost,self.loss(self.y,self.y_mask)],
                                       updates = updates,
                                       givens = {
                                             self.x: train_set_x[:,batch_start:batch_stop],
-                                            self.y: train_set_y[:,batch_start:batch_stop]},
+                                            self.y: train_set_y[:,batch_start:batch_stop],
+                                            self.x_mask: mask_set_x[:,batch_start:batch_stop],
+                                            self.y_mask: mask_set_y[:,batch_start:batch_stop]  
+                                                    },
+<<<<<<< HEAD
+                                      mode = mode,
+                                      on_unused_input='ignore')
+=======
                                       mode = mode)
-                     
+>>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 
-
+        ###############
+        # TRAIN MODEL #
+        ###############
+        print 'Training model ...'
+        epoch = 0
         n_train = train_set_x.get_value(borrow = True).shape[1]
         n_train_batches = int(np.ceil(1.0 * n_train / self.n_batch))
         
-        for idx in xrange(n_train_batches):
-            effective_momentum = self.final_momentum \
-                                 if epoch > self.momentum_switchover \
-                                 else self.initial_momentum
-            example_cost = train_model(idx,
-                                       self.lr,
-                                       effective_momentum,n_train)
-
-                          
-        # compute loss on training set
-        train_losses = [compute_train_error(i, n_train)
-                        for i in xrange(n_train_batches)]
-        train_batch_sizes = [get_batch_size(i, n_train)
-                             for i in xrange(n_train_batches)]
-
-        this_train_loss = np.average(train_losses,
-                                     weights=train_batch_sizes)
-                                             
-        return this_train_loss                                     
+        if optimizer is not 'SGD': self.learning_rate_decay=1
+        
+        while (epoch < self.n_epochs):
+            epoch = epoch + 1
+            if verbose==1: 
+                progbar=Progbar(n_train_batches)
+            train_losses=[]
+            train_batch_sizes=[]
+            for idx in xrange(n_train_batches):
             
-    
+                effective_momentum = self.final_momentum \
+<<<<<<< HEAD
+                                     if (epoch+len(self.errors)) > self.momentum_switchover \
+=======
+                                     if epoch > self.momentum_switchover \
+>>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
+                                     else self.initial_momentum
+                cost = train_model(idx,
+                                   self.lr,
+                                   effective_momentum,n_train)
+                                   
+                train_losses.append(cost[1]) 
+                train_batch_sizes.append(get_batch_size(idx, n_train))    
+                          
+                if verbose==1: progbar.update(idx+1)                            
+                            
+            this_train_loss = np.average(train_losses,
+                                         weights=train_batch_sizes)      
+                       
+            self.errors.append(this_train_loss)
+           
+           
+           
+            print('epoch %i, train loss %f ''lr: %f' % \
+                  (epoch, this_train_loss, self.lr))
+                  
+                  
+            ### autimatically saving snapshot ..
+            if np.mod(epoch,self.snapshot)==0:
+                if epoch is not n_train_batches: self.save()
+            
+            ### generating sample.. 
+            if np.mod(epoch,self.sample_Freq)==0:
+                print 'Generating a sample...'               
+                
+                i=np.random.randint(1,n_train)
+                
+                test=X_train[:,i]
+<<<<<<< HEAD
 
+                truth=Y_train[:,i]                
+                
+                guess =self.gen_sample(test,X_mask[:,i])
+                
+                print 'Input: ',' '.join(input.sequences_to_text(test))
+    
+                print 'Truth: ',' '.join(output.sequences_to_text(truth))
+                
+                print 'Sample: ',' '.join(output.sequences_to_text(guess[1]))
+             
+            '''
+            # compute loss on validation set
+            if np.mod(epoch,self.val_Freq)==0:
+
+                val_losses = [compute_val_error(i, n_train)
+                                for i in xrange(n_train_batches)]
+                val_batch_sizes = [get_batch_size(i, n_train)
+                                     for i in xrange(n_train_batches)]
+                this_val_loss = np.average(val_losses,
+                                         weights=val_batch_sizes)                     
+            '''     
+                
+            self.lr *= self.learning_rate_decay
+                    
+                          
+   
+
+                                      
+    def gen_sample(self,X_test,X_mask,stochastic=True,k=3):
+        
+        ### define symbollic structure
+        next_y=T.matrix()
+        next_h=T.matrix()
+        
+        get_sample = theano.function(inputs = [self.x,self.x_mask,next_y,next_h],
+                                             outputs = self.get_sample(next_y,next_h),
+                                             mode = mode,
+                                             on_unused_input='ignore')        
+        r=T.lscalar()                                     
+        get_vector = theano.function(inputs = [r,],
+                                     outputs = self.Wemb[r],
+                                     mode = mode,
+                                     on_unused_input='ignore')  
+                                             
+        X_test=np.asarray(X_test[:,None],dtype='int32')
+        X_mask=np.asarray(X_mask[:,None],dtype='float32')
+
+=======
+
+                truth=Y_train[:,i]                
+                
+                guess =self.gen_sample(test,X_mask[:,i])
+                
+                print 'Input: ',' '.join(input.sequences_to_text(test))
+    
+                print 'Truth: ',' '.join(output.sequences_to_text(truth))
+                
+                print 'Sample: ',' '.join(output.sequences_to_text(guess[1]))
+             
+            '''
+            # compute loss on validation set
+            if np.mod(epoch,self.val_Freq)==0:
+
+                val_losses = [compute_val_error(i, n_train)
+                                for i in xrange(n_train_batches)]
+                val_batch_sizes = [get_batch_size(i, n_train)
+                                     for i in xrange(n_train_batches)]
+                this_val_loss = np.average(val_losses,
+                                         weights=val_batch_sizes)                     
+            '''     
+                
+            self.lr *= self.learning_rate_decay
+                    
+                          
+   
+
+                                      
+    def gen_sample(self,X_test,X_mask,stochastic=True):
+        X_test=np.asarray(X_test[:,None],dtype='int32')
+        X_mask=np.asarray(X_mask[:,None],dtype='float32')
 
         
-                                      
-    def gen_sample(self,X_test):
-        X_test=np.asarray(X_test,dtype=theano.config.floatX)
-
+        
+>>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
         sample=[]
         sample_proba=[]
+        
+        sample_score = []
+        
+        live_k = 1
+        dead_k = 0
+        
+        hyp_samples = [[]] * live_k
+        hyp_scores = np.zeros(live_k).astype('float32')
+        hyp_states = []
 
+<<<<<<< HEAD
+        next_w=np.zeros((1,self.n_out)).astype('float32') 
+        h_w=-1*np.ones((1,self.n_decoder)).astype('float32')
+        
 
-        next_w=T.zeros((1,self.n_out))       
-        h_w=T.tanh(T.dot(self.layers[-1].get_input().mean(0), self.W_hi) + self.b_hi)
+        
+
+=======
+        next_w=T.zeros((1,self.n_out))     
+        ctx=self.layers[-1].get_input()
+        ctx_mean = (ctx * X_mask[:,:,None]).sum(0) / X_mask.sum(0)[:,None]
+        h_w=T.tanh(T.dot(ctx_mean, self.W_hi) + self.b_hi)
+        
+
 
         for i in xrange(self.maxlen):
             
-            h_w,logit=self.get_sample(next_w,h_w)
+            h_w,logit,c=self.get_sample(next_w,h_w)
+>>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 
-            y_gen = T.dot(logit, self.W_hy) + self.b_hy
+        for i in xrange(self.maxlen):
             
-            p_y_given_x_gen=T.nnet.softmax(y_gen)
+            h_w,logit,p_y_given_x_gen=get_sample(X_test,X_mask,next_w,h_w)
+            sample_proba.append(p_y_given_x_gen.flatten())
             
-            sample_proba.append(p_y_given_x_gen[0])
-            
-            next_w=max_mask(p_y_given_x_gen,1)
-          
-            result = T.argmax(p_y_given_x_gen, axis = -1)  
+            if stochastic: ### stochastic sampling
+                
+                result = np.argmax(p_y_given_x_gen, axis = -1)[0] 
+                
 
-            sample.append(result) 
+                sample.append(result) 
+                sample_score.append(c)
+                
+<<<<<<< HEAD
+                w=get_vector(result)
+                
+                next_w=np.asarray(w.reshape((1,self.n_out))).astype('float32')
+
+             
+            else:   
+                p_y_given_x_gen=np.array(p_y_given_x_gen).astype('float32')
+
+                #print p_y_given_x_gen
+                cand_scores = hyp_scores[:,None] - np.log(p_y_given_x_gen.flatten())
+=======
+                next_w=self.Wemb_dec[result]
+
+        '''        
+            else:    #Todo : implement Beam Search Algorithm here
             
+                cand_scores = hyp_scores[:,None] - np.log(p_y_given_x_gen)
+>>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
+                cand_flat = cand_scores.flatten()
+                ranks_flat = cand_flat.argsort()[:(k-dead_k)]
+                
+                voc_size = p_y_given_x_gen.shape[1]
+                trans_indices = ranks_flat / voc_size
+                word_indices = ranks_flat % voc_size
+                costs = cand_flat[ranks_flat]
+    
+                new_hyp_samples = []
+                new_hyp_scores = np.zeros(k-dead_k).astype('float32')
+               # new_hyp_states = []
+
+                
+                for idx, [ti, wi] in enumerate(zip(trans_indices, word_indices)):
+                    
+                    new_hyp_samples.append(hyp_samples[ti]+[wi])
+                    new_hyp_scores[idx] = copy.copy(costs[ti])
+                   # new_hyp_states.append(copy.copy(result[ti]))
+                
+                # check the finished samples
+                new_live_k = 0
+                hyp_samples = []
+                hyp_scores = []
+                #hyp_states = []
+    
+                for idx in xrange(len(new_hyp_samples)):
+                    if new_hyp_samples[idx][-1] == 0:
+                        sample.append(new_hyp_samples[idx])
+                        sample_score.append(new_hyp_scores[idx])
+                        dead_k += 1
+                    else:
+                        new_live_k += 1
+                        hyp_samples.append(new_hyp_samples[idx])
+                        hyp_scores.append(new_hyp_scores[idx])
+                        #hyp_states.append(new_hyp_states[idx])
+                hyp_scores = np.array(hyp_scores)
+                live_k = new_live_k
+    
+                if new_live_k < 1:
+                    break
+                if dead_k >= k:
+                    break
+    
+                next_w = np.array([w[-1] for w in hyp_samples])
+                w=get_vector(next_w[0])
+                next_w=np.asarray(w.reshape((1,self.n_out))).astype('float32')
+                #next_state = np.array(hyp_states)
         
-        #Todo : implement Beam Search Algorithm here
-        
-        predict_proba = theano.function(inputs = [self.x,],
+        if not stochastic:
+        # dump every remaining one
+<<<<<<< HEAD
+            if live_k > 0:
+                for idx in xrange(live_k):
+                    sample.append(hyp_samples[idx])
+                    sample_score.append(hyp_scores[idx])
+            sample=sample[np.argmin(sample_score)]        
+            print sample        
+
+        return sample_proba,sample
+   
+=======
+        if live_k > 0:
+            for idx in xrange(live_k):
+                sample.append(hyp_samples[idx])
+                sample_score.append(hyp_scores[idx])
+        '''
+        ## compile theano graph
+        predict_proba = theano.function(inputs = [self.x,self.x_mask],
                                              outputs = sample_proba,
                                              mode = mode)
                                              
-        predict = theano.function(inputs = [self.x,],
+        predict = theano.function(inputs = [self.x,self.x_mask],
                                        outputs = sample, # y-out is calculated by applying argmax
-                                       mode = mode)  
+                                       mode = mode)          
+        '''                               
+        predict_etc = theano.function(inputs = [self.x,self.x_mask],
+                                       outputs = sample_score, # y-out is calculated by applying argmax
+                                       mode = mode,
+                                       on_unused_input='ignore')            
+        '''
                                        
-        return  predict_proba(X_test),predict(X_test)
+        return  predict_proba(X_test,X_mask),predict(X_test,X_mask)
         
+>>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
         

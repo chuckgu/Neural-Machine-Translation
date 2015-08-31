@@ -58,6 +58,7 @@ class Tokenizer(object):
         for text in texts:
             self.document_count += 1
             seq = text_to_word_sequence(text, self.filters, self.lower, self.split)
+            
             for w in seq:
                 if w in self.word_counts:
                     self.word_counts[w] += 1
@@ -72,12 +73,24 @@ class Tokenizer(object):
         wcounts = list(self.word_counts.items())
         wcounts.sort(key = lambda x: x[1], reverse=True)
         sorted_voc = [wc[0] for wc in wcounts]
-        self.word_index = dict(list(zip(sorted_voc, list(range(1, len(sorted_voc)+1)))))
+        self.word_index = dict(list(zip(sorted_voc, list(range(1, len(sorted_voc)+1)))))##amend
+        self.word_index['<eos>']=0
+        #self.word_index['UNK']=1
+<<<<<<< HEAD
+        
+        print "max words:"+str(len(self.word_index))
+        print "max sentences:"+str(self.document_count)
+        if self.nb_words is None:
+            self.nb_words=len(self.word_index)
+        print "nb_words:"+str(self.nb_words)
+        
+=======
 
+>>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
         self.index_docs = {}
         for w, c in list(self.word_docs.items()):
             self.index_docs[self.word_index[w]] = c
-
+            
 
     def fit_on_sequences(self, sequences):
         '''
@@ -95,7 +108,7 @@ class Tokenizer(object):
                     self.index_docs[i] += 1
 
 
-    def texts_to_sequences(self, texts,batch_size=None):
+    def texts_to_sequences(self, texts,batch_size=None,maxlen=100):
         '''
             Transform each text in texts in a sequence of integers.
             Only top "nb_words" most frequent words will be taken into account.
@@ -103,15 +116,22 @@ class Tokenizer(object):
 
             Returns a list of sequences.
         '''
-        if batch_size is None: batch_size=self.document_count
+                
+        
+        if batch_size is None: 
+            batch_size=self.document_count
+        print "batch_size:"+str(batch_size)
         res = []
-        for vect in self.texts_to_sequences_generator(texts):
+        for vect in self.texts_to_sequences_generator(texts,maxlen):
             res.append(vect)
             if len(res) >= batch_size:
                     break 
+        lengths = [len(s) for s in res]
+        print('max length of sentence: %i' %max(lengths))
+        
         return res
 
-    def texts_to_sequences_generator(self, texts):
+    def texts_to_sequences_generator(self, texts,maxlen=100):
         '''
             Transform each text in texts in a sequence of integers.
             Only top "nb_words" most frequent words will be taken into account.
@@ -119,17 +139,29 @@ class Tokenizer(object):
 
             Yields individual sequences.
         '''
+        '''
+        if maxlen is None:
+            self.maxlen = np.max(lengths)
+            maxlen=self.maxlen
+        print('maximum number of words in a sentence: %i' %maxlen)
+        '''
+        
         nb_words = self.nb_words
         for text in texts:
             seq = text_to_word_sequence(text, self.filters, self.lower, self.split)
             vect = []
+            k=0
             for w in seq:
+                if k>=maxlen:break
                 i = self.word_index.get(w)
                 if i is not None:
                     if nb_words and i >= nb_words:
-                        pass
+                        vect.append(1)
                     else:
                         vect.append(i)
+                else: vect.append(1)            
+                k+=1
+            #vect.append(0)
             yield vect
 
 
@@ -137,19 +169,17 @@ class Tokenizer(object):
         '''
             modes: binary, count, tfidf, freq
         '''
-        sequences = self.texts_to_sequences(texts,batch_size)
-        return self.sequences_to_matrix(sequences, mode=mode,maxlen=maxlen)
+        sequences = self.texts_to_sequences(texts,batch_size,maxlen=maxlen)
+        return self.sequences_to_matrix(sequences, mode=mode)
 
-    def sequences_to_matrix(self, sequences, mode="onehot",maxlen=None):
+    def sequences_to_matrix(self, sequences, mode="onehot"):
         '''
             modes: binary, count, tfidf, freq
         '''
         
-        lengths = [len(s) for s in sequences]
-        if maxlen is None:
-            self.maxlen = np.max(lengths)
-            print self.maxlen
-
+        
+        
+        maxlen=self.maxlen
         if not self.nb_words:
             if self.word_index:
                 nb_words = len(self.word_index)
@@ -160,15 +190,15 @@ class Tokenizer(object):
         if mode == "tfidf" and not self.document_count:
             raise Exception("Fit the Tokenizer on some data before using tfidf mode")
 
-        X = np.zeros((len(sequences),self.maxlen,nb_words))
+        X = np.zeros((len(sequences),maxlen,nb_words))
         for i, seq in enumerate(sequences):
             if not seq:
                 pass
             counts = {}
-            position=np.zeros((nb_words,self.maxlen))
+            position=np.zeros((nb_words,maxlen))
             k=0
             for j in seq:
-                if k>=self.maxlen:break 
+                if k>=maxlen:break 
                 if j >= nb_words:
                     pass
                 if j not in counts:
@@ -201,10 +231,14 @@ class Tokenizer(object):
 
         vect = []
         for n, w in enumerate(sequences):
-            if w>0:
-                i = self.word_index.keys()[self.word_index.values().index(w)]
-                #print i
-                vect.append(i)
+            if w==0:break
+            i = self.word_index.keys()[self.word_index.values().index(w)]
+            #print i
+<<<<<<< HEAD
+            if i is not None:vect.append(i)
+=======
+            vect.append(i)
+>>>>>>> c6bc144111175998c997e5e6e9d44519b73e732d
 
 
         return vect
@@ -259,14 +293,14 @@ def pad_sequences(sequences, maxlen=None, dtype='int32', padding='post', truncat
 if __name__ == "__main__":
     n_batch=9000
     text=[]
-    with open("OpenSubtitles2012.en-ko.en") as f:
+    with open("word.txt") as f:
         for line in f:
             text.append(line)
-    input=Tokenizer(500)
+    input=Tokenizer()
     input.fit_on_texts(text)
-    train_x=input.texts_to_matrix(text,"binary",n_batch)
+    train_x=input.texts_to_sequences(text)
     
-    a=input.matrix_to_text(train_x[10])
+    a=input.sequences_to_text(train_x[58])
     
     '''
     text=[]
